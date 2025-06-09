@@ -1,0 +1,51 @@
+name: CI - Build and Test
+
+on: [push, pull_request]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: dtc_clean
+          POSTGRES_PASSWORD: 12345pass
+          POSTGRES_DB: dtc_clean_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U dtc_clean"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v3
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: 🧪 Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://dtc_clean:12345pass@localhost:5432/dtc_clean_db
+          REDIS_URL: redis://localhost:6379
+        run: |
+          pytest tests/
+
+      - name: 🐳 Build Docker image
+        run: docker build -t myapp:test .
